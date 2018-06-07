@@ -1,6 +1,13 @@
-cmake_minimum_required(VERSION 2.8.8 FATAL_ERROR)
-cmake_policy(VERSION 2.8.8)
-project(gl3loadtests)
+cmake_minimum_required(VERSION 3.10.2 FATAL_ERROR)
+cmake_policy(VERSION 3.10.2)
+project(KTX)
+
+set(CMAKE_CONFIGURATION_TYPES Debug Release CACHE INTERNAL "")
+#If you don't choose a build type we choose debug for you
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
+endif(NOT CMAKE_BUILD_TYPE)
+
 set(configuration "Debug")
 enable_language(ASM)
 set(builddir "${CMAKE_CURRENT_BINARY_DIR}")
@@ -8,101 +15,98 @@ set(obj "${builddir}/obj")
 
 set(CMAKE_C_OUTPUT_EXTENSION_REPLACE 1)
 set(CMAKE_CXX_OUTPUT_EXTENSION_REPLACE 1)
-
 set(CMAKE_NINJA_FORCE_RESPONSE_FILE 1)
 
+#Base filepaths that everything else will alias off of
+set(LIBKTX_LIB_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../../lib)
+set(LIBKTX_PUBLIC_HEADERS_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../../include)
+set(LIBKTX_PRIVATE_HEADERS_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../../other_include)
 
-#libktx.gyp:libktx.es3#target
-set(TARGET "libktx.es3")
-set(TOOLSET "target")
-list(APPEND libktx_es3__c_srcs
-  "../../../../lib/checkheader.c"
-  "../../../../lib/errstr.c"
-  "../../../../lib/hashtable.c"
-  "../../../../lib/ktxfilestream.c"
-  "../../../../lib/ktxmemstream.c"
-  "../../../../lib/loader.c"
-  "../../../../lib/swap.c"
-  "../../../../lib/writer.c")
-list(APPEND libktx_es3__cxx_srcs
-  "../../../../lib/etcdec.cxx"
-  "../../../../lib/etcunpack.cxx")
-list(APPEND libktx_es3__other_srcs
-  "../../../../include/ktx.h"
-  "../../../../lib/gl_funcptrs.h"
-  "../../../../lib/gles1_funcptrs.h"
-  "../../../../lib/gles2_funcptrs.h"
-  "../../../../lib/gles3_funcptrs.h"
-  "../../../../lib/ktxfilestream.h"
-  "../../../../lib/ktxint.h"
-  "../../../../lib/ktxmemstream.h"
-  "../../../../lib/ktxstream.h"
-  "../../../../lib/uthash.h")
-add_library(libktx_es3 STATIC ${libktx_es3__c_srcs} ${libktx_es3__cxx_srcs} ${libktx_es3__other_srcs})
-set_target_properties(libktx_es3 PROPERTIES EXCLUDE_FROM_ALL "TRUE")
-set_source_files_properties(${libktx_es3__other_srcs} PROPERTIES HEADER_FILE_ONLY "TRUE")
-set_target_properties(libktx_es3 PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${obj}.${TOOLSET}/")
-set_target_properties(libktx_es3 PROPERTIES PREFIX "lib")
+set(LIBKTX_BINARY_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
+set(LIBKTX_BINARY_LIBRARY_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
+#The sources for the KTX texture format reference implementation
+set(LIBKTX_PUBLIC_HEADERS
+  ${LIBKTX_PUBLIC_HEADERS_DIR}/ktx.h
+  )
+
+set(LIBKTX_PRIVATE_HEADERS
+  ${LIBKTX_LIB_SOURCE_DIR}/gl_funcptrs.h
+  ${LIBKTX_LIB_SOURCE_DIR}/gles1_funcptrs.h
+  ${LIBKTX_LIB_SOURCE_DIR}/gles2_funcptrs.h
+  ${LIBKTX_LIB_SOURCE_DIR}/gles3_funcptrs.h
+  ${LIBKTX_LIB_SOURCE_DIR}/ktxfilestream.h
+  ${LIBKTX_LIB_SOURCE_DIR}/ktxint.h
+  ${LIBKTX_LIB_SOURCE_DIR}/ktxmemstream.h
+  ${LIBKTX_LIB_SOURCE_DIR}/ktxstream.h
+  ${LIBKTX_LIB_SOURCE_DIR}/uthash.h
+  )
+
+set(LIBKTX_PRIVATE_SOURCE
+  ${LIBKTX_LIB_SOURCE_DIR}/checkheader.c
+  ${LIBKTX_LIB_SOURCE_DIR}/errstr.c
+  ${LIBKTX_LIB_SOURCE_DIR}/hashtable.c
+  ${LIBKTX_LIB_SOURCE_DIR}/ktxfilestream.c
+  ${LIBKTX_LIB_SOURCE_DIR}/ktxmemstream.c
+  ${LIBKTX_LIB_SOURCE_DIR}/loader.c
+  ${LIBKTX_LIB_SOURCE_DIR}/swap.c
+  ${LIBKTX_LIB_SOURCE_DIR}/writer.c
+  ${LIBKTX_LIB_SOURCE_DIR}/etcdec.cxx
+  ${LIBKTX_LIB_SOURCE_DIR}/etcunpack.cxx
+  )
+
+############################################
+#LIBKTX built for OpenGL ES 3
+############################################
+add_library(libktx_es3 STATIC ${LIBKTX_PUBLIC_HEADERS} ${LIBKTX_PRIVATE_HEADERS} ${LIBKTX_PRIVATE_SOURCE})
+#Public include directories are "inherited" to those who link to the target
+target_include_directories(libktx_es3 PUBLIC ${LIBKTX_PUBLIC_HEADERS_DIR})
+target_include_directories(libktx_es3 PRIVATE ${LIBKTX_PRIVATE_HEADERS_DIR})
+
+target_compile_definitions(libktx_es3 PRIVATE KTX_OPENGL_ES3=1 $<IF:$<CONFIG:Debug>,DEBUG=1,_DEBUG=1>)
+
+set_target_properties(libktx_es3 PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${LIBKTX_BINARY_LIBRARY_OUT_DIR}/$<CONFIG>/lib)
 set_target_properties(libktx_es3 PROPERTIES ARCHIVE_OUTPUT_NAME "ktx.es3")
-set_target_properties(libktx_es3 PROPERTIES SUFFIX ".a")
-set_source_files_properties(${obj}.${TOOLSET}/libktx.es3.a PROPERTIES GENERATED "TRUE")
-list(APPEND libktx_es3__include_dirs
-  "${CMAKE_CURRENT_LIST_DIR}/../../../../include"
-  "${CMAKE_CURRENT_LIST_DIR}/../../../../other_include")
-set_property(TARGET libktx_es3 APPEND PROPERTY INCLUDE_DIRECTORIES ${libktx_es3__include_dirs})
-set_target_properties(libktx_es3 PROPERTIES COMPILE_DEFINITIONS "KTX_OPENGL_ES3=1;DEBUG;_DEBUG;")
-set_target_properties(libktx_es3 PROPERTIES COMPILE_FLAGS "-O0 ")
-set_target_properties(libktx_es3 PROPERTIES XCODE_ATTRIBUTE_COPY_PHASE_STRIP "NO")
-set_target_properties(libktx_es3 PROPERTIES XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES")
-set_target_properties(libktx_es3 PROPERTIES XCODE_ATTRIBUTE_GCC_OPTIMIZATION_LEVEL "0")
-unset(TOOLSET)
-unset(TARGET)
 
-#libktx.gyp:libktx.es1#target
-set(TARGET "libktx.es1")
-set(TOOLSET "target")
-list(APPEND libktx_es1__c_srcs
-  "../../../../lib/checkheader.c"
-  "../../../../lib/errstr.c"
-  "../../../../lib/hashtable.c"
-  "../../../../lib/ktxfilestream.c"
-  "../../../../lib/ktxmemstream.c"
-  "../../../../lib/loader.c"
-  "../../../../lib/swap.c"
-  "../../../../lib/writer.c")
-list(APPEND libktx_es1__cxx_srcs
-  "../../../../lib/etcdec.cxx"
-  "../../../../lib/etcunpack.cxx")
-list(APPEND libktx_es1__other_srcs
-  "../../../../include/ktx.h"
-  "../../../../lib/gl_funcptrs.h"
-  "../../../../lib/gles1_funcptrs.h"
-  "../../../../lib/gles2_funcptrs.h"
-  "../../../../lib/gles3_funcptrs.h"
-  "../../../../lib/ktxfilestream.h"
-  "../../../../lib/ktxint.h"
-  "../../../../lib/ktxmemstream.h"
-  "../../../../lib/ktxstream.h"
-  "../../../../lib/uthash.h")
-add_library(libktx_es1 STATIC ${libktx_es1__c_srcs} ${libktx_es1__cxx_srcs} ${libktx_es1__other_srcs})
-set_target_properties(libktx_es1 PROPERTIES EXCLUDE_FROM_ALL "TRUE")
-set_source_files_properties(${libktx_es1__other_srcs} PROPERTIES HEADER_FILE_ONLY "TRUE")
-set_target_properties(libktx_es1 PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${obj}.${TOOLSET}/")
-set_target_properties(libktx_es1 PROPERTIES PREFIX "lib")
+############################################
+#LIBKTX built for OpenGL ES 1
+############################################
+add_library(libktx_es1 STATIC ${LIBKTX_PUBLIC_HEADERS} ${LIBKTX_PRIVATE_HEADERS} ${LIBKTX_PRIVATE_SOURCE})
+#Public include directories are "inherited" to those who link to the target
+target_include_directories(libktx_es1 PUBLIC ${LIBKTX_PUBLIC_HEADERS_DIR})
+target_include_directories(libktx_es1 PRIVATE ${LIBKTX_PRIVATE_HEADERS_DIR})
+
+target_compile_definitions(libktx_es1 PRIVATE KTX_OPENGL_ES1=1 $<IF:$<CONFIG:Debug>,DEBUG=1,_DEBUG=1>)
+
+set_target_properties(libktx_es1 PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${LIBKTX_BINARY_LIBRARY_OUT_DIR}/$<CONFIG>/lib)
 set_target_properties(libktx_es1 PROPERTIES ARCHIVE_OUTPUT_NAME "ktx.es1")
-set_target_properties(libktx_es1 PROPERTIES SUFFIX ".a")
-set_source_files_properties(${obj}.${TOOLSET}/libktx.es1.a PROPERTIES GENERATED "TRUE")
-list(APPEND libktx_es1__include_dirs
-  "${CMAKE_CURRENT_LIST_DIR}/../../../../include"
-  "${CMAKE_CURRENT_LIST_DIR}/../../../../other_include")
-set_property(TARGET libktx_es1 APPEND PROPERTY INCLUDE_DIRECTORIES ${libktx_es1__include_dirs})
-set_target_properties(libktx_es1 PROPERTIES COMPILE_DEFINITIONS "KTX_OPENGL_ES1=1;DEBUG;_DEBUG;")
-set_target_properties(libktx_es1 PROPERTIES COMPILE_FLAGS "-O0 ")
-set_target_properties(libktx_es1 PROPERTIES XCODE_ATTRIBUTE_COPY_PHASE_STRIP "NO")
-set_target_properties(libktx_es1 PROPERTIES XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES")
-set_target_properties(libktx_es1 PROPERTIES XCODE_ATTRIBUTE_GCC_OPTIMIZATION_LEVEL "0")
-unset(TOOLSET)
-unset(TARGET)
+
+############################################
+#LIBKTX built for OpenGL Desktop
+############################################
+add_library(libktx_gl STATIC ${LIBKTX_PUBLIC_HEADERS} ${LIBKTX_PRIVATE_HEADERS} ${LIBKTX_PRIVATE_SOURCE})
+#Public include directories are "inherited" to those who link to the target
+target_include_directories(libktx_gl PUBLIC ${LIBKTX_PUBLIC_HEADERS_DIR})
+target_include_directories(libktx_gl PRIVATE ${LIBKTX_PRIVATE_HEADERS_DIR})
+
+target_compile_definitions(libktx_gl PRIVATE KTX_OPENGL=1 $<IF:$<CONFIG:Debug>,DEBUG=1,_DEBUG=1>)
+
+set_target_properties(libktx_gl PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${LIBKTX_BINARY_LIBRARY_OUT_DIR}/$<CONFIG>/lib)
+set_target_properties(libktx_gl PROPERTIES ARCHIVE_OUTPUT_NAME "ktx.gl")
+
+############################################
+#LIBKTX Tools
+############################################
+
+############################################
+#LIBKTX Documentation
+############################################
+
+set(LIBKTX_DOCUMENTATION_SOURCE "")
+#include the LibKTX source
+list(APPEND LIBKTX_DOCUMENTATION_SOURCE ${LIBKTX_PUBLIC_HEADERS} ${LIBKTX_PRIVATE_HEADERS} ${LIBKTX_PRIVATE_SOURCE})
+
+
 
 #libktx.gyp:libktx.doc#target
 set(TARGET "libktx.doc")
@@ -193,66 +197,14 @@ add_dependencies(libktx_doc
 unset(TOOLSET)
 unset(TARGET)
 
-#libktx.gyp:libgl#target
-set(TARGET "libgl")
-set(TOOLSET "target")
-add_custom_target(libgl SOURCES)
-set_target_properties(libgl PROPERTIES EXCLUDE_FROM_ALL "FALSE")
-unset(TOOLSET)
-unset(TARGET)
 
-#libktx.gyp:libktx.gl#target
-set(TARGET "libktx.gl")
-set(TOOLSET "target")
-list(APPEND libktx_gl__c_srcs
-  "../../../../lib/checkheader.c"
-  "../../../../lib/errstr.c"
-  "../../../../lib/hashtable.c"
-  "../../../../lib/ktxfilestream.c"
-  "../../../../lib/ktxmemstream.c"
-  "../../../../lib/loader.c"
-  "../../../../lib/swap.c"
-  "../../../../lib/writer.c")
-list(APPEND libktx_gl__cxx_srcs
-  "../../../../lib/etcdec.cxx"
-  "../../../../lib/etcunpack.cxx")
-list(APPEND libktx_gl__other_srcs
-  "../../../../include/ktx.h"
-  "../../../../lib/gl_funcptrs.h"
-  "../../../../lib/gles1_funcptrs.h"
-  "../../../../lib/gles2_funcptrs.h"
-  "../../../../lib/gles3_funcptrs.h"
-  "../../../../lib/ktxfilestream.h"
-  "../../../../lib/ktxint.h"
-  "../../../../lib/ktxmemstream.h"
-  "../../../../lib/ktxstream.h"
-  "../../../../lib/uthash.h")
-link_directories()
-add_library(libktx_gl SHARED ${libktx_gl__c_srcs} ${libktx_gl__cxx_srcs} ${libktx_gl__other_srcs})
-set_target_properties(libktx_gl PROPERTIES EXCLUDE_FROM_ALL "FALSE")
-set_source_files_properties(${libktx_gl__other_srcs} PROPERTIES HEADER_FILE_ONLY "TRUE")
-set_target_properties(libktx_gl PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${builddir}/lib.${TOOLSET}")
-set_target_properties(libktx_gl PROPERTIES PREFIX "lib")
-set_target_properties(libktx_gl PROPERTIES LIBRARY_OUTPUT_NAME "ktx.gl")
-set_target_properties(libktx_gl PROPERTIES SUFFIX ".so")
-set_source_files_properties(${builddir}/lib.${TOOLSET}/libktx.gl.so PROPERTIES GENERATED "TRUE")
-list(APPEND libktx_gl__include_dirs
-  "${CMAKE_CURRENT_LIST_DIR}/../../../../include"
-  "${CMAKE_CURRENT_LIST_DIR}/../../../../other_include")
-set_property(TARGET libktx_gl APPEND PROPERTY INCLUDE_DIRECTORIES ${libktx_gl__include_dirs})
-set_target_properties(libktx_gl PROPERTIES COMPILE_DEFINITIONS "KTX_OPENGL=1;DEBUG;_DEBUG;")
-set_target_properties(libktx_gl PROPERTIES COMPILE_FLAGS "-O0 -fPIC ")
-set_target_properties(libktx_gl PROPERTIES XCODE_ATTRIBUTE_COPY_PHASE_STRIP "NO")
-set_target_properties(libktx_gl PROPERTIES XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES")
-set_target_properties(libktx_gl PROPERTIES XCODE_ATTRIBUTE_GCC_OPTIMIZATION_LEVEL "0")
-add_dependencies(libktx_gl
-  libgl
-)
-target_link_libraries(libktx_gl
-  "-lGL"
-)
-unset(TOOLSET)
-unset(TARGET)
+#libktx.gyp:libgl#target
+ set(TARGET "libgl")
+ set(TOOLSET "target")
+ add_custom_target(libgl SOURCES)
+ set_target_properties(libgl PROPERTIES EXCLUDE_FROM_ALL "FALSE")
+ unset(TOOLSET)
+ unset(TARGET)
 
 #ktxtools.gyp:toktx#target
 set(TARGET "toktx")
